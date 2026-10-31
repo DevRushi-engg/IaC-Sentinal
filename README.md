@@ -16,6 +16,14 @@ Now upgraded with a real-time **Tactical Telemetry Mission Control Web UI** and 
 
 ---
 
+## 🎬 Live Demo & Telemetry Walkthrough
+
+https://github.com/user-attachments/assets/7b80a17f-9404-4d4a-9f21-d67e3855942a
+
+> 📺 **End-to-End Walkthrough**: Real-time telemetry streaming, plan ingestion, AI root-cause diagnosis, automated sandbox validation, and GitHub PR creation.
+
+---
+
 ## 📸 Mission Control Interface
 
 | 🖥️ Tactical Mission Control Dashboard |
