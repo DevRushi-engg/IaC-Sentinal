@@ -26,6 +26,9 @@ import {
   triggerPipelineRun,
   uploadPlanFile,
   fetchFixtures,
+  getApiBaseUrl,
+  resolveApiUrl,
+  fetchReport,
 } from "@/lib/api";
 import { FixtureInfo, PipelineRunRecord, StageUpdatePayload } from "@/lib/types";
 
@@ -123,10 +126,19 @@ export default function PipelineRunnerPage() {
       setFinalRecord(record);
 
       // Connect to WebSocket for live updates
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const wsProtocol = apiBase.startsWith("https") ? "wss:" : "ws:";
-      const host = apiBase.replace(/^https?:\/\//, "");
-      const wsUrl = `${wsProtocol}//${host}/ws/pipeline/${record.id}`;
+      const apiBase = getApiBaseUrl();
+      let wsUrl: string;
+      if (apiBase) {
+        const wsProtocol = apiBase.startsWith("https") ? "wss:" : "ws:";
+        const host = apiBase.replace(/^https?:\/\//, "");
+        wsUrl = `${wsProtocol}//${host}/ws/pipeline/${record.id}`;
+      } else if (typeof window !== "undefined") {
+        const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        wsUrl = `${wsProtocol}//${window.location.host}/ws/pipeline/${record.id}`;
+      } else {
+        wsUrl = `ws://localhost:8000/ws/pipeline/${record.id}`;
+      }
+
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
@@ -170,10 +182,8 @@ export default function PipelineRunnerPage() {
         // Fallback fetch final record if needed
         setTimeout(async () => {
           try {
-            const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-            const res = await fetch(`${apiBase}/api/pipeline/runs/${record.id}`);
-            if (res.ok) {
-              const full = await res.json();
+            const full = await fetchReport(record.id);
+            if (full) {
               setFinalRecord(full);
               setIsRunning(false);
             }

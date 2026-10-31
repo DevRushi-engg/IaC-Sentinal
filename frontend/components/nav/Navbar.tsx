@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { StatusDot } from "../ui/StatusDot";
 import { Activity, ShieldAlert, Cpu, Terminal, Sliders, ExternalLink } from "lucide-react";
+import { fetchHealth } from "@/lib/api";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -24,9 +25,8 @@ export function Navbar() {
   useEffect(() => {
     const checkApi = async () => {
       try {
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-        const res = await fetch(`${apiBase}/health`, { method: "GET" });
-        setApiConnected(res.ok);
+        await fetchHealth();
+        setApiConnected(true);
       } catch {
         setApiConnected(false);
       }
