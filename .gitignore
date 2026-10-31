@@ -35,3 +35,8 @@ env/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Agent & Documentation (local only)
+.agents/
+docs/
+
