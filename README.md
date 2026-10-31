@@ -12,6 +12,20 @@
 
 Now upgraded with a real-time **Tactical Telemetry Mission Control Web UI** and **FastAPI backend**.
 
+🔗 **Live Deployment:** [https://iac-sentinal.vercel.app](https://iac-sentinal.vercel.app)
+
+---
+
+## 📸 Mission Control Interface
+
+| 🖥️ Tactical Mission Control Dashboard |
+| :---: |
+| ![IaC Sentinal Mission Control Dashboard](assets/dashboard_preview.png) |
+
+| ⚡ 6-Stage Deterministic Pipeline Orchestrator |
+| :---: |
+| ![IaC Sentinal Pipeline Orchestrator](assets/pipeline_preview.png) |
+
 ---
 
 ## 🔑 Core Design Principle
