@@ -49,6 +49,13 @@ export function Badge({
       case "NO_DRIFT":
         colorClasses = "bg-[#10b981]/15 text-[#34d399] border-[#10b981]/40";
         break;
+      case "QUARANTINED":
+      case "BLOCKED":
+        colorClasses = "bg-[#f59e0b]/15 text-[#fbbf24] border-[#f59e0b]/40";
+        break;
+      case "SKIPPED":
+        colorClasses = "bg-[#71717a]/15 text-[#a1a1aa] border-white/10";
+        break;
     }
   }
 

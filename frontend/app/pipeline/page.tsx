@@ -53,7 +53,9 @@ export default function PipelineRunnerPage() {
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [currentStage, setCurrentStage] = useState<number>(0);
-  const [stageStatuses, setStageStatuses] = useState<Record<number, "pending" | "running" | "completed" | "failed">>({
+  const [stageStatuses, setStageStatuses] = useState<
+    Record<number, "pending" | "running" | "completed" | "failed" | "quarantined" | "blocked" | "skipped">
+  >({
     1: "pending",
     2: "pending",
     3: "pending",
@@ -376,9 +378,15 @@ export default function PipelineRunnerPage() {
                 } else if (status === "completed") {
                   borderStyle = "border-[#22c55e]/40 bg-[#0a1a0f]";
                   icon = <CheckCircle2 className="w-4 h-4 text-[#22c55e]" />;
+                } else if (status === "quarantined" || status === "blocked") {
+                  borderStyle = "border-[#f59e0b]/50 bg-[#1f170a]";
+                  icon = <ShieldAlert className="w-4 h-4 text-[#fbbf24]" />;
                 } else if (status === "failed") {
                   borderStyle = "border-[#e61919] bg-[#1a0a0a]";
                   icon = <XCircle className="w-4 h-4 text-[#e61919]" />;
+                } else if (status === "skipped") {
+                  borderStyle = "border-white/10 bg-[#0e0e11]";
+                  icon = <Clock className="w-4 h-4 text-[#71717a]" />;
                 }
 
                 return (

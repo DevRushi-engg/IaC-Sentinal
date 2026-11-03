@@ -49,6 +49,15 @@ class PatchGenerator:
             })
             return modified_files
 
+        # Ensure patch contains actual code/diff, not just advisory comments
+        patch_body = proposal.patch.strip()
+        if patch_body.startswith(("#", "//")) and not ("---" in patch_body or "resource " in patch_body or "variable " in patch_body):
+            audit_logger.log_event("PATCH_SKIPPED", {
+                "reason": "Patch contains only advisory comments without HCL blocks",
+                "status": proposal.status.value,
+            })
+            return modified_files
+
         for file_rel in proposal.files_to_modify:
             # Normalize path
             clean_rel = file_rel.replace("\\", "/")

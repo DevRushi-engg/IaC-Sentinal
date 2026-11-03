@@ -125,6 +125,16 @@ async def execute_pipeline_task(run_id: str, request: PipelineRunRequest):
             record.validation = val_result
 
             if not val_result.is_valid:
+                if val_result.unexpected_destroy:
+                    guardrail_msg = "🛡️ GUARDRAIL TRIGGERED: Proposal contains destructive changes. Automated PR creation halted for manual human review."
+                    await broadcast(5, "Deterministic Validation", "quarantined", 0.90, guardrail_msg, val_result.model_dump())
+                    await broadcast(6, "GitHub PR Automation", "skipped", 1.0, "PR creation blocked by safety policy: Human approval required.")
+                    record.status = "QUARANTINED"
+                    record.error = guardrail_msg
+                    record.completed_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    store.update_run(record)
+                    return
+
                 err_msg = ", ".join(val_result.errors) if val_result.errors else "Guardrail violation"
                 await broadcast(5, "Deterministic Validation", "failed", 0.90, f"Validation failed: {err_msg}", val_result.model_dump())
                 record.status = "FAILED"

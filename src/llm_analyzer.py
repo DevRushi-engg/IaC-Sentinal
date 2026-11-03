@@ -179,8 +179,8 @@ class LLMAnalyzer:
                 "root_cause_hypothesis": "The resource was deleted or marked for destructive replacement in the live environment.",
                 "risk": "CRITICAL",
                 "recommended_action": "Manual review is strictly required before restoring or deleting infrastructure.",
-                "files_to_modify": ["terraform/main.tf"],
-                "patch": "# CRITICAL: Destructive action detected. Requires manual review.",
+                "files_to_modify": [],
+                "patch": "",
                 "confidence": 0.99,
                 "requires_human_review": True
             })
