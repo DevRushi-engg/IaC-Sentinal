@@ -84,38 +84,103 @@ class PatchGenerator:
             with open(target_file, "w", encoding="utf-8") as f:
                 f.write(patch_content)
 
-    def _apply_unified_diff(self, target_file: Path, diff_text: str) -> None:
-        """Parse and apply simple unified diff additions/deletions."""
-        if not target_file.exists():
-            original_lines = []
-        else:
-            with open(target_file, "r", encoding="utf-8") as f:
-                original_lines = f.readlines()
+        # Normalize formatting with terraform fmt if CLI is available
+        if shutil.which("terraform"):
+            try:
+                import subprocess
+                subprocess.run(["terraform", "fmt", str(target_file)], capture_output=True, timeout=10)
+            except Exception:
+                pass
 
-        new_lines: List[str] = []
-        for line in diff_text.splitlines(keepends=True):
+    def _apply_unified_diff(self, target_file: Path, diff_text: str) -> None:
+        """Parse and apply unified diff additions/deletions onto existing target file."""
+        if not target_file.exists():
+            new_lines: List[str] = []
+            for line in diff_text.splitlines(keepends=True):
+                if line.startswith("---") or line.startswith("+++") or line.startswith("@@"):
+                    continue
+                if line.startswith("+"):
+                    new_lines.append(line[1:])
+                elif line.startswith(" "):
+                    new_lines.append(line[1:])
+            with open(target_file, "w", encoding="utf-8") as f:
+                f.writelines(new_lines)
+            return
+
+        with open(target_file, "r", encoding="utf-8") as f:
+            original_lines = f.readlines()
+
+        removed_lines: List[str] = []
+        added_lines: List[str] = []
+        for line in diff_text.splitlines():
             if line.startswith("---") or line.startswith("+++") or line.startswith("@@"):
                 continue
             if line.startswith("-"):
-                # Deleted line from target
-                continue
+                removed_lines.append(line[1:])
             elif line.startswith("+"):
-                # Added line to target
-                new_lines.append(line[1:])
-            else:
-                # Context line (leading space if formatted diff)
-                if line.startswith(" "):
-                    new_lines.append(line[1:])
-                else:
-                    new_lines.append(line)
+                added_lines.append(line[1:])
 
-        # If diff parsing produced content, write it; otherwise keep original
-        if new_lines:
+        # If diff has specific removals and additions, perform in-place substitution
+        if removed_lines and added_lines:
+            content = "".join(original_lines)
+            patched = False
+            # 1. Try exact replacement of removed lines
+            for rem in removed_lines:
+                rem_stripped = rem.strip()
+                if not rem_stripped:
+                    continue
+                for add in added_lines:
+                    add_formatted = add if add.endswith("\n") else add + "\n"
+                    lines = content.splitlines(keepends=True)
+                    new_lines = []
+                    for line in lines:
+                        if rem_stripped in line:
+                            indent = line[:len(line) - len(line.lstrip())]
+                            final_add = add_formatted if add_formatted.startswith(" ") else f"{indent}{add_formatted}"
+                            new_lines.append(final_add)
+                            patched = True
+                        else:
+                            new_lines.append(line)
+                    if patched:
+                        content = "".join(new_lines)
+                        break
+                if patched:
+                    break
+
+            # 2. If not matched by exact text, match by attribute key (e.g. `Environment =`)
+            if not patched:
+                for add in added_lines:
+                    if "=" in add:
+                        key = add.split("=")[0].strip()
+                        lines = content.splitlines(keepends=True)
+                        new_lines = []
+                        for line in lines:
+                            stripped_line = line.strip()
+                            if stripped_line.startswith(key) and ("=" in stripped_line):
+                                indent = line[:len(line) - len(line.lstrip())]
+                                add_body = add.strip() + "\n"
+                                new_lines.append(f"{indent}{add_body}")
+                                patched = True
+                            else:
+                                new_lines.append(line)
+                        if patched:
+                            content = "".join(new_lines)
+                            break
+
+            if patched:
+                with open(target_file, "w", encoding="utf-8") as f:
+                    f.write(content)
+                return
+
+        # Fallback if diff provided full replacement block
+        non_meta_lines = [
+            line[1:] if line.startswith(("+", " ")) else line
+            for line in diff_text.splitlines(keepends=True)
+            if not line.startswith(("---", "+++", "@@", "-"))
+        ]
+        if non_meta_lines and not target_file.exists():
             with open(target_file, "w", encoding="utf-8") as f:
-                f.writelines(new_lines)
-        elif not target_file.exists():
-            with open(target_file, "w", encoding="utf-8") as f:
-                f.write(diff_text)
+                f.writelines(non_meta_lines)
 
     @staticmethod
     def cleanup_workspace(workspace: Path) -> None:

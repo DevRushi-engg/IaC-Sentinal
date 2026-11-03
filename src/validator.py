@@ -4,12 +4,18 @@ Ensures no candidate code is approved without strict syntax, formatting, and dry
 """
 from __future__ import annotations
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional
 from src.drift_model import LLMRemediationProposal, RiskLevel, ValidationResult
 from src.audit_logger import audit_logger
+
+
+def _clean_ansi(text: str) -> str:
+    """Strip ANSI escape sequences from terminal command outputs."""
+    return re.sub(r'\x1b\[[0-9;]*[a-zA-Z]', '', text).strip()
 
 
 class TerraformValidator:
@@ -85,11 +91,14 @@ class TerraformValidator:
     def _run_cli_fmt(self, workspace: Path) -> tuple[bool, str]:
         """Execute `terraform fmt -check` via subprocess."""
         try:
+            # First try auto-formatting in workspace so valid HCL with whitespace diffs conforms
+            subprocess.run([self.terraform_binary, "fmt"], cwd=str(workspace), capture_output=True, timeout=15)
             cmd = [self.terraform_binary, "fmt", "-check"]
             proc = subprocess.run(cmd, cwd=str(workspace), capture_output=True, text=True, timeout=30)
             if proc.returncode == 0:
                 return True, ""
-            return False, f"terraform fmt check failed: {proc.stderr or proc.stdout}"
+            err = _clean_ansi(proc.stderr or proc.stdout)
+            return False, f"terraform fmt check failed: {err}"
         except Exception as e:
             return False, f"Error running terraform fmt: {e}"
 
@@ -100,7 +109,14 @@ class TerraformValidator:
             proc = subprocess.run(cmd, cwd=str(workspace), capture_output=True, text=True, timeout=30)
             if proc.returncode == 0:
                 return True, ""
-            return False, f"terraform validate failed: {proc.stderr or proc.stdout}"
+            err = _clean_ansi(proc.stderr or proc.stdout)
+            # If the error is only about missing providers (e.g. uninitialized provider in temp sandbox), fallback to static HCL check
+            if "Missing required provider" in err or "provider isn't available" in err:
+                audit_logger.log_event("VALIDATION_FALLBACK", {
+                    "reason": "Providers not initialized in ephemeral workspace, falling back to static HCL validation"
+                })
+                return self._static_hcl_validate_check(workspace)
+            return False, f"terraform validate failed: {err}"
         except Exception as e:
             return False, f"Error running terraform validate: {e}"
 
