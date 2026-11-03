@@ -74,7 +74,7 @@ export interface PRResult {
 
 export interface PipelineRunRecord {
   id: string;
-  status: "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "NO_DRIFT";
+  status: "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "NO_DRIFT" | "QUARANTINED" | "BLOCKED";
   created_at: string;
   completed_at?: string;
   plan_name: string;
@@ -120,7 +120,7 @@ export interface StageUpdatePayload {
   run_id: string;
   stage: number;
   stage_name: string;
-  status: "pending" | "running" | "completed" | "failed" | "skipped";
+  status: "pending" | "running" | "completed" | "failed" | "skipped" | "quarantined" | "blocked";
   progress: number;
   message: string;
   timestamp: string;

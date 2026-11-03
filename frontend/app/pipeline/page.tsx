@@ -151,10 +151,19 @@ export default function PipelineRunnerPage() {
 
           if (stageNum > 0) {
             setCurrentStage(stageNum);
-            setStageStatuses((prev) => ({
-              ...prev,
-              [stageNum]: payload.status as any,
-            }));
+            setStageStatuses((prev) => {
+              const updated = {
+                ...prev,
+                [stageNum]: payload.status as any,
+              };
+              // Auto-resolve predecessor stages so earlier stages (e.g. Stage 1) don't get stuck in running
+              for (let i = 1; i < stageNum; i++) {
+                if (updated[i] === "running" || updated[i] === "pending") {
+                  updated[i] = "completed";
+                }
+              }
+              return updated;
+            });
             setStageMessages((prev) => ({
               ...prev,
               [stageNum]: payload.message,
@@ -166,10 +175,28 @@ export default function PipelineRunnerPage() {
             `[${payload.status.toUpperCase()}] Stage ${payload.stage} (${payload.stage_name}): ${payload.message}`,
           ]);
 
-          if (stageNum === 6 && payload.status === "completed") {
+          // Terminal states: ensure execution stops and button returns to idle
+          const isTerminalStatus =
+            payload.status === "completed" ||
+            payload.status === "quarantined" ||
+            payload.status === "blocked" ||
+            payload.status === "failed" ||
+            payload.status === "skipped";
+
+          if (
+            (stageNum === 6 && isTerminalStatus) ||
+            payload.status === "quarantined" ||
+            payload.status === "blocked" ||
+            payload.status === "failed" ||
+            (stageNum === 2 && payload.message.toLowerCase().includes("no drift"))
+          ) {
             setIsRunning(false);
-          } else if (payload.status === "failed") {
-            setIsRunning(false);
+            // Immediately sync final record for debrief inspection
+            fetchReport(record.id)
+              .then((full) => {
+                if (full) setFinalRecord(full);
+              })
+              .catch(() => {});
           }
         } catch (e) {
           console.error("WS Parse error", e);
@@ -448,6 +475,10 @@ export default function PipelineRunnerPage() {
                       className={
                         line.includes("[FATAL]") || line.includes("[FAILED]")
                           ? "text-[#ff4d4d]"
+                          : line.includes("[QUARANTINED]") || line.includes("[GUARDRAIL]")
+                          ? "text-[#fbbf24]"
+                          : line.includes("[SKIPPED]")
+                          ? "text-[#a1a1aa]"
                           : line.includes("[COMPLETED]") || line.includes("[SUCCESS]")
                           ? "text-[#4ade80]"
                           : line.includes("[RUNNING]")
@@ -464,29 +495,100 @@ export default function PipelineRunnerPage() {
             </div>
           </div>
 
-          {/* Results Summary Card if Complete */}
+          {/* Results Summary Card if Complete or Quarantined */}
           {finalRecord && (
-            <div className="tactical-panel p-5 space-y-4 border-l-4 border-l-[#22c55e] bg-[#0b140e]">
-              <div className="flex items-center justify-between">
+            <div
+              className={`tactical-panel p-5 space-y-4 border-l-4 ${
+                finalRecord.status === "QUARANTINED" || stageStatuses[5] === "quarantined"
+                  ? "border-l-[#f59e0b] bg-[#1a1409]"
+                  : finalRecord.status === "FAILED" || stageStatuses[5] === "failed"
+                  ? "border-l-[#e61919] bg-[#1a0a0a]"
+                  : "border-l-[#22c55e] bg-[#0b140e]"
+              }`}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-[#22c55e]" />
+                  {finalRecord.status === "QUARANTINED" || stageStatuses[5] === "quarantined" ? (
+                    <ShieldAlert className="w-5 h-5 text-[#fbbf24]" />
+                  ) : finalRecord.status === "FAILED" || stageStatuses[5] === "failed" ? (
+                    <XCircle className="w-5 h-5 text-[#e61919]" />
+                  ) : (
+                    <CheckCircle2 className="w-5 h-5 text-[#22c55e]" />
+                  )}
                   <span className="font-mono text-sm font-bold text-white tracking-wider">
-                    PIPELINE EXECUTION DEBRIEF COMPLETE
+                    {finalRecord.status === "QUARANTINED" || stageStatuses[5] === "quarantined"
+                      ? "DESTRUCTIVE DRIFT QUARANTINED — HUMAN REVIEW MANDATORY"
+                      : finalRecord.status === "FAILED" || stageStatuses[5] === "failed"
+                      ? "PIPELINE RECONCILIATION HALTED"
+                      : "PIPELINE EXECUTION DEBRIEF COMPLETE"}
                   </span>
                 </div>
-                <Link
-                  href={`/reports/${finalRecord.id}`}
-                  className="px-3 py-1.5 bg-[#22c55e] hover:bg-[#16a34a] text-black font-mono text-xs font-bold tracking-wider flex items-center gap-1.5 transition-colors"
-                >
-                  <span>INSPECT FULL DEBRIEF</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setIsRunning(false);
+                      setCurrentStage(0);
+                      setStageStatuses({
+                        1: "pending",
+                        2: "pending",
+                        3: "pending",
+                        4: "pending",
+                        5: "pending",
+                        6: "pending",
+                      });
+                      setStageMessages({});
+                      setFinalRecord(null);
+                      setLogs([]);
+                    }}
+                    className="px-3 py-1.5 bg-[#141414] hover:bg-[#1a1a1a] border border-white/10 text-xs font-mono text-[#a1a1aa] flex items-center gap-1.5 transition-colors"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>RESET</span>
+                  </button>
+                  <Link
+                    href={`/reports/${finalRecord.id}`}
+                    className={`px-3 py-1.5 font-mono text-xs font-bold tracking-wider flex items-center gap-1.5 transition-colors ${
+                      finalRecord.status === "QUARANTINED" || stageStatuses[5] === "quarantined"
+                        ? "bg-[#f59e0b] hover:bg-[#d97706] text-black"
+                        : "bg-[#22c55e] hover:bg-[#16a34a] text-black"
+                    }`}
+                  >
+                    <span>
+                      {finalRecord.status === "QUARANTINED" || stageStatuses[5] === "quarantined"
+                        ? "INSPECT QUARANTINE DEBRIEF"
+                        : "INSPECT FULL DEBRIEF"}
+                    </span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
               </div>
+
+              {(finalRecord.status === "QUARANTINED" || stageStatuses[5] === "quarantined") && (
+                <div className="p-3 bg-black/40 border border-[#f59e0b]/30 font-mono text-xs text-[#fcd34d] flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-[#f59e0b] shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold uppercase tracking-wider block">Safety Policy Active</span>
+                    <span>
+                      Automated PR creation was halted because this plan involves destructive deletion or replacement of cloud infrastructure. Review the diff in the debrief before applying any manual changes.
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs">
                 <div className="p-2.5 bg-black/40 border border-white/10">
                   <span className="text-[10px] text-[#71717a] block uppercase">STATUS</span>
-                  <span className="text-white font-bold">{finalRecord.status}</span>
+                  <span
+                    className={`font-bold ${
+                      finalRecord.status === "QUARANTINED" || stageStatuses[5] === "quarantined"
+                        ? "text-[#fbbf24]"
+                        : "text-white"
+                    }`}
+                  >
+                    {finalRecord.status === "QUEUED" && stageStatuses[5] === "quarantined"
+                      ? "QUARANTINED"
+                      : finalRecord.status}
+                  </span>
                 </div>
                 <div className="p-2.5 bg-black/40 border border-white/10">
                   <span className="text-[10px] text-[#71717a] block uppercase">DRIFT FINGERPRINT</span>
@@ -497,7 +599,9 @@ export default function PipelineRunnerPage() {
                 <div className="p-2.5 bg-black/40 border border-white/10">
                   <span className="text-[10px] text-[#71717a] block uppercase">PULL REQUEST</span>
                   <span className="text-[#3b82f6] font-bold truncate block">
-                    {finalRecord.pr_result?.pr_url || "SIMULATED / DRY-RUN"}
+                    {finalRecord.status === "QUARANTINED" || stageStatuses[5] === "quarantined"
+                      ? "BLOCKED BY SAFETY POLICY"
+                      : finalRecord.pr_result?.pr_url || "SIMULATED / DRY-RUN"}
                   </span>
                 </div>
               </div>
