@@ -51,10 +51,12 @@ jobs:
           terraform_version: 1.7.0
 
       - name: Configure AWS Credentials (OIDC - Least Privilege Plan Role)
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
         if: env.AWS_ROLE_ARN != ''
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
           role-session-name: MeridianDriftDetectionSession
 
