@@ -79,7 +79,11 @@ jobs:
           LLM_PROVIDER: ${{ inputs.llm_provider || 'gemini' }}
         run: |
           if [ -f tfplan.json ]; then
-            python src/main.py --plan-json tfplan.json --dry-run ${{ inputs.dry_run || 'false' }} --llm-provider ${{ inputs.llm_provider || 'gemini' }}
+            if [ "${{ inputs.dry_run || 'false' }}" = "true" ]; then
+              python src/main.py --plan-json tfplan.json --dry-run --llm-provider ${{ inputs.llm_provider || 'gemini' }}
+            else
+              python src/main.py --plan-json tfplan.json --llm-provider ${{ inputs.llm_provider || 'gemini' }}
+            fi
           else
-            python src/main.py --plan-json tests/fixtures/update_plan.json --dry-run true --llm-provider mock
+            python src/main.py --plan-json tests/fixtures/update_plan.json --dry-run --llm-provider mock
           fi
